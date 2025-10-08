@@ -1,0 +1,1075 @@
+<html>
+<head>
+	<title>Jezzball</title>
+	<script src="jquery-1.12.0.js"></script>
+	<style>
+		body{
+			font-family: Arial;
+			color: white;
+			background: black;
+			font-weight:bold;
+		}
+		.container{
+			text-align: center;
+			margin: 0 auto;
+			width:621px;
+		}
+		p{
+			width:621px;
+			margin: 20px auto;
+			display: block;
+			text-align:center;
+		}
+		.livesArea{
+			float:left;
+			text-align:left;
+			display: inline-block;
+			margin-bottom:20px;
+			width: 140px;
+		}
+		.scoreArea{
+			margin: 0 auto;
+			text-align:center;
+			display: inline-block;
+			margin-bottom:20px;
+			width: 140px;
+		}
+		.timeArea{
+			float:right;
+			text-align:right;
+			display: inline-block;
+			margin-bottom:20px;
+			width: 140px;
+		}
+		#mainContainer{
+			height:345px;
+			width:621px;
+			margin: 0 auto;
+			display: block;
+			position:relative;
+			background-color:lightgrey;
+			background-image: url('bg.png');
+			background-repeat: repeat;
+			overflow:hidden;
+		}
+		.ball{
+			background-color:red;
+			text-align: center;
+			margin:0px;
+			display:inline-block;
+			position:absolute;
+			font-size:8px;
+			overflow:hidden;
+			box-shadow: 4px 2px 5px #191919;
+		}
+		.ballSpin{
+			background:white;
+			display:inline-block;
+			position:absolute;
+			top:0px;
+			border-radius: 4px;
+		}
+		.verticalCursor{
+			cursor: n-resize;
+		}
+		.horizontalCursor{
+			cursor: e-resize;
+		}
+		.closureBar{
+			background-color:black;
+			display:inline-block;
+			position:absolute;
+		}
+		.closureFill{
+			background-color:black;
+			display:inline-block;
+			position:absolute;
+		}
+		.topBar{
+			display:inline-block;
+			position:absolute;
+			background-color:rgba(255,0,0,0.5);
+		}
+		.topArrow{
+			top:0px;
+			left:0px;
+			display:inline-block;
+			position:absolute;
+			background-color:red;
+			color:#FFF;
+			text-align:center;
+		}
+		.topArrow:before{
+			content: '\25B2';
+		}
+		.bottomBar{
+			display:inline-block;
+			position:absolute;
+			background-color:rgba(0,0,255,0.5);
+		}
+		.bottomArrow{
+			bottom:0px;
+			left:0px;
+			display:inline-block;
+			position:absolute;
+			background-color:blue;
+			color:#FFF;
+			text-align:center;
+		}
+		.bottomArrow:before{
+			content: '\25BC';
+		}
+		.leftBar{
+			display:inline-block;
+			position:absolute;
+			background-color:rgba(255,0,0,0.5);
+		}
+		.leftArrow{
+			top:0px;
+			left:0px;
+			display:inline-block;
+			position:absolute;
+			background-color:red;
+			color:#FFF;
+			text-align:center;
+		}
+		.leftArrow:before{
+			content: '\25C0';
+		}
+		.rightBar{
+			display:inline-block;
+			position:absolute;
+			background-color:rgba(0,0,255,0.5);
+		}
+		.rightArrow{
+			top:0px;
+			right:0px;
+			display:inline-block;
+			position:absolute;
+			background-color:blue;
+			color:#FFF;
+			text-align:center;
+		}
+		.rightArrow:before{
+			content: '\25B6';
+		}
+		.footer{
+			text-align: center;
+		}
+	</style>
+</head>
+<body>
+
+<div class="container">
+	<p>
+		<button id="playPauseBtn">Play</button>
+	</p>
+	<div class="livesArea">
+		Lives: <span id="lives"></span>
+	</div>
+	<div class="scoreArea">
+		Score: <span id="score"></span>
+	</div>
+	<div class="timeArea">
+		Time Left: <span id="time"></span>
+	</div>
+
+	<div id="mainContainer" class="verticalCursor">
+	</div>
+
+	<p class="footer">
+		Area Cleared: <span id="complete">0</span>%
+	</p>
+</div>
+
+<script>
+	class Point {
+		constructor(xCoord, yCoord) {
+			this.x = xCoord;
+			this.y = yCoord;
+		}
+	};
+	class Rect {
+		constructor(topYCoord, leftXCoord, bottomYCoord, rightXCoord) {
+			this.t = topYCoord;
+			this.l = leftXCoord;
+			this.b = bottomYCoord;
+			this.r = rightXCoord;
+		}
+	};
+	class Cross {
+		constructor(topPoint, leftPoint, bottomPoint, rightPoint) {
+			this.t = topPoint;
+			this.l = leftPoint;
+			this.b = bottomPoint;
+			this.r = rightPoint;
+		}
+	};
+
+	function buildBall(){
+		
+		var div = document.createElement("div");
+		div.className = "ball";
+		div.style.width = window.ballDiameter + "px";
+		div.style.height = window.ballDiameter + "px";
+		div.style.borderRadius = window.ballDiameter + "px";
+		div.style.lineHeight = parseInt(window.ballDiameter / 2) + "px";
+		
+		var spinDiv = document.createElement("div");
+		spinDiv.className = "ballSpin";
+		spinDiv.style.width = window.ballDiameter + "px";
+		spinDiv.style.height = window.ballDiameter + "px";
+		spinDiv.style.left = ((-1) * window.ballDiameter) + "px";
+		
+		div.appendChild(spinDiv);
+		
+		var containerWidth = $("#mainContainer").width() - window.ballDiameter;
+		var containerHeight = $("#mainContainer").height() - window.ballDiameter;
+		
+		//set random start position within container
+		var isPositionOccupied = true;
+		while(isPositionOccupied){
+			
+			var leftPos = parseInt(Math.random() * containerWidth);
+			var topPos = parseInt(Math.random() * containerHeight);
+			div.style.left = leftPos + "px";
+			div.style.top = topPos + "px";
+			
+			isPositionOccupied = false;
+			
+			//check new position against all existing balls
+			$(".ball").each(function(){
+				var thisLeftPos = parseInt($(this).css("left"));
+				var thisTopPos = parseInt($(this).css("top"));
+				
+				//if the new ball position is somewhere inside the boundaries of an existing ball
+				if (
+					//top left corner
+					(leftPos >= thisLeftPos && leftPos <= (thisLeftPos + window.ballDiameter) &&
+					topPos >= thisTopPos && topPos <= (thisTopPos + window.ballDiameter)) ||
+					//bottom left corner
+					(leftPos >= thisLeftPos && leftPos <= (thisLeftPos + window.ballDiameter) &&
+					(topPos + window.ballDiameter) >= thisTopPos && (topPos + window.ballDiameter) <= (thisTopPos + window.ballDiameter)) ||
+					//bottom right corner
+					((leftPos + window.ballDiameter) >= thisLeftPos && (leftPos + window.ballDiameter) <= (thisLeftPos + window.ballDiameter) &&
+					(topPos + window.ballDiameter) >= thisTopPos && (topPos + window.ballDiameter) <= (thisTopPos + window.ballDiameter)) ||
+					//top right corner
+					(leftPos >= thisLeftPos && leftPos <= (thisLeftPos + window.ballDiameter) &&
+					(topPos + window.ballDiameter) >= thisTopPos && (topPos + window.ballDiameter) <= (thisTopPos + window.ballDiameter))
+				){
+					//randomly generate a new position until a clear position is found
+					isPositionOccupied = true;
+				}
+			});
+			
+		}
+		
+		setBallAngle(div);
+		
+		document.getElementById("mainContainer").appendChild(div);
+	}
+	
+	function setBallAngle(div){
+		
+		/*//set random angle out of 360
+		var angle = parseInt(Math.random() * 360);
+		
+		//make sure angle is greater than 5 degrees from a straight line
+		if(angle % 90 < 5){
+			if(angle > (360 - 5)){
+				angle = angle - 5;
+			}else{
+				angle = angle + 5;
+			}
+		}
+		
+		div.xAngle = Math.cos(angle) * window.ballSpeed;
+		div.yAngle = Math.sin(angle) * window.ballSpeed;*/
+		
+		//just use 45 degree angles
+		var xAngle = (Math.random() > 0.5) ? 1 : -1;
+		var yAngle = (Math.random() > 0.5) ? 1 : -1;
+		
+		div.xAngle = xAngle * window.ballSpeed;
+		div.yAngle = yAngle * window.ballSpeed;
+		
+	}
+	
+	function moveBallSpin(spinDiv){
+		
+		var spinDistance = parseInt(spinDiv.style.width) / 10;
+		
+		//if the spin has moved beyond the right edge
+		if( parseInt(spinDiv.style.left) >= parseInt(spinDiv.style.width) ){
+			spinDiv.style.left = (((-1) * parseInt(spinDiv.style.width)) + spinDistance) + "px";
+		}else{
+			spinDiv.style.left = (parseInt(spinDiv.style.left) + spinDistance) + "px";
+		}
+		
+	}
+	
+	function play(){
+		
+		$(".ball").each(function(){
+			moveBall($(this)[0]);
+			moveBallSpin($(this).children(".ballSpin")[0]);
+		});
+		if(!window.paused){
+			requestAnimationFrame(play);
+		}
+	}
+	
+	function isPointInside(point, rect){
+		
+		if(point.x >= rect.l && point.x < rect.r && point.y >= rect.t && point.y < rect.b){
+			return true;
+		}
+		
+		return false;
+	}
+	
+	function moveBall(ballDiv){
+		
+		var containerWidth = $("#mainContainer").width();
+		var containerHeight = $("#mainContainer").height();
+		
+		var newXPos = parseInt(ballDiv.style.left) + ballDiv.xAngle;
+		var newYPos = parseInt(ballDiv.style.top) + ballDiv.yAngle;
+		
+		var ballRect = new Rect(
+			newYPos,
+			newXPos,
+			newYPos + window.ballDiameter,
+			newXPos + window.ballDiameter,
+		);
+		
+		//when it hits the side wall
+		if( ballRect.r > containerWidth ){
+		
+			ballDiv.xAngle = ballDiv.xAngle * (-1);
+			newXPos = (containerWidth - (ballRect.r - containerWidth)) - window.ballDiameter;
+			
+		}else if( ballRect.l < 0 ){
+		
+			ballDiv.xAngle = ballDiv.xAngle * (-1);
+			newXPos = ballRect.l * (-1);
+			
+		}
+		
+		//when it hits the top/bottom wall
+		if( ballRect.b > containerHeight ){
+		
+			ballDiv.yAngle = ballDiv.yAngle * (-1);
+			newYPos = (containerHeight - (ballRect.b - containerHeight)) - window.ballDiameter;
+			
+		} else if( ballRect.t < 0 ){
+		
+			ballDiv.yAngle = ballDiv.yAngle * (-1);
+			newYPos = ballRect.t * (-1);
+			
+		}
+		
+		var ballCross = getCrossFromPoint(new Point(newXPos, newYPos), window.ballDiameter);
+		
+		//if the ball hits a bar or another ball
+		$(".ball, .closureBar").each(function(){
+			
+			var barRect = getRectFromDiv($(this)[0]);
+			
+			if( $(this)[0] != ballDiv ){
+			
+				if( isPointInside(ballCross.t, barRect) ){
+					
+					//bounce down
+					ballDiv.yAngle = ballDiv.yAngle * (-1);
+					newYPos = (barRect.b - newYPos) + barRect.b;
+					
+				}else if( isPointInside(ballCross.b, barRect) ){
+					
+					//bounce up
+					ballDiv.yAngle = ballDiv.yAngle * (-1);
+					newYPos = newYPos - ((newYPos + parseInt(ballDiv.style.height)) - barRect.t);
+					
+				}
+				
+				if( isPointInside(ballCross.l, barRect) ){
+					
+					//bounce right
+					ballDiv.xAngle = ballDiv.xAngle * (-1);
+					newXPos = (barRect.r - newXPos) + barRect.r;
+					
+				}else if( isPointInside(ballCross.r, barRect) ){
+					
+					//bounce left
+					ballDiv.xAngle = ballDiv.xAngle * (-1);
+					newXPos = newXPos - ((newXPos + parseInt(ballDiv.style.width)) - barRect.l);
+					
+				}
+			
+			}
+			
+		});
+		
+		ballDiv.style.top = newYPos;
+		ballDiv.style.left = newXPos;
+		
+	}
+	
+	function getCrossFromPoint(topLeftPoint, diameter){
+		
+		//get ball position as cross
+		var topCenter = new Point(
+			topLeftPoint.x + parseInt( diameter / 2),
+			topLeftPoint.y
+		);
+		var bottomCenter = new Point(
+			topLeftPoint.x + parseInt( diameter / 2),
+			topLeftPoint.y + diameter
+		);
+		var leftMiddle = new Point(
+			topLeftPoint.x,
+			topLeftPoint.y + parseInt( diameter / 2)
+		);
+		var rightMiddle = new Point(
+			topLeftPoint.x + diameter,
+			topLeftPoint.y + parseInt( diameter / 2)
+		);
+		
+		var ballCross = new Cross(
+			topCenter,
+			leftMiddle,
+			bottomCenter,
+			rightMiddle
+		);
+		
+		return ballCross;
+	}
+	
+	function transformBar(div, xChange, widthChange, yChange, heightChange){
+		
+		//change bar size and position, then validate new position
+		//if valid, transformBar() will be called again
+		
+		var newPoint = new Point();
+		
+		//vertical
+		if(heightChange != 0){
+			
+			//don't update the position while paused
+			if(!window.paused){
+				div.style.top = (parseInt(div.style.top) + (window.barSpeed * yChange)) + "px";
+				div.style.height = (parseInt(div.style.height) + (window.barSpeed * heightChange)) + "px";
+			}
+			
+			//moving up
+			if(yChange < 0){
+				newPoint = new Point(
+					parseInt(div.style.left),
+					parseInt(div.style.top)
+				);
+			}else{
+				//moving down
+				newPoint = new Point(
+					parseInt(div.style.left),
+					parseInt(div.style.top) + parseInt(div.style.height)
+				);
+			}
+			
+		}else if( widthChange != 0 ){
+			
+			//horizontal
+			
+			//don't update the position while paused
+			if(!window.paused){
+				div.style.left = (parseInt(div.style.left) + (window.barSpeed * xChange)) + "px";
+				div.style.width = (parseInt(div.style.width) + (window.barSpeed * widthChange)) + "px";
+			}
+		
+			//moving left
+			if(xChange < 0){
+				newPoint = new Point(
+					parseInt(div.style.left),
+					parseInt(div.style.top)
+				);
+			}else{
+				//moving right
+				newPoint = new Point(
+					parseInt(div.style.left) + parseInt(div.style.width),
+					parseInt(div.style.top)
+				);
+			}
+		}
+		
+		if( validateBarPosition(div, newPoint) ){
+			//if valid, keep calling the transform method with the same movement parameters
+			requestAnimationFrame(function(){
+				transformBar(div, xChange, widthChange, yChange, heightChange);
+			});
+		}
+		
+	}
+	
+	function validateBarPosition(div, newPoint){
+		
+		if( !checkBrokenBar(div) ){
+			
+			//if bar has not completed, continue looping
+			if( !checkIntersectingBar(newPoint) && !checkOutsideContainer(newPoint) ){
+				
+				return true;
+				
+			}else{
+				//if bar has intersected or exceeded the container, make closure
+				changeBarToClosure(div);
+				
+			}
+			
+		}
+		
+		return false;
+		
+	}
+	
+	function checkBrokenBar(barDiv){
+		
+		var barRect = getRectFromDiv(barDiv);
+		
+		//if a ball hits the moving bar
+		var balls = document.getElementsByClassName("ball");
+		for(var x=0; x<balls.length; x++){
+			
+			var ballPoint = new Point(
+				parseInt(balls[x].style.left),
+				parseInt(balls[x].style.top)
+			);
+			var ballCross = getCrossFromPoint(ballPoint, window.ballDiameter);
+			
+			//if any side of a ball intersects with the moving bar
+			if( isPointInside(ballCross.t, barRect) ||
+				isPointInside(ballCross.l, barRect) ||
+				isPointInside(ballCross.b, barRect) ||
+				isPointInside(ballCross.r, barRect)
+			){
+				
+				//delete the bar
+				$(barDiv).remove();
+				delete barDiv;
+				
+				window.remainingLives = --window.remainingLives < 0 ? 0 : window.remainingLives;
+				$("#lives").text(window.remainingLives);
+				
+				if(window.remainingLives <= 0){
+					window.paused = true;
+					$("#playPauseBtn").text("Retry");
+				}
+				
+				return true;
+			}
+			
+		}
+		
+		return false;
+	}
+	
+	function checkIntersectingBar(movingBarPoint){
+		
+		//stop the bar if it intersects with another bar
+		var bars = document.getElementsByClassName("closureBar");
+		for(var x=0; x<bars.length; x++){
+			
+			var closureRect = getRectFromDiv( bars[x] );
+			if( isPointInside(movingBarPoint, closureRect) ){
+				return true;
+			}
+		}
+		
+		return false;
+	}
+	
+	function checkOutsideContainer(movingBarPoint){
+		
+		var containerRect = getRectFromDiv( document.getElementById("mainContainer") );
+		
+		if( !isPointInside(movingBarPoint, containerRect) ){
+			return true;
+		}
+		
+		return false;
+	}
+	
+	function changeBarToClosure(div){
+		div.className = "closureBar";
+		div.innerHTML = '';
+		addBarToMap(div);
+	}
+	
+	function startVerticalBar(cursorPoint){
+		
+		if( window.paused ||
+			$(".topBar").length > 0 || $(".bottomBar").length > 0 ||
+			$(".leftBar").length > 0 || $(".rightBar").length > 0){
+			//do nothing if bar is already started
+			return;
+		}
+		
+		var topDiv = buildBarDiv("topBar", "topArrow", cursorPoint);
+		var bottomDiv = buildBarDiv("bottomBar", "bottomArrow", cursorPoint);
+		
+		document.getElementById("mainContainer").appendChild(topDiv);
+		document.getElementById("mainContainer").appendChild(bottomDiv);
+		
+		transformBar(topDiv, 0, 0, (-1), 1);
+		transformBar(bottomDiv, 0, 0, 0, 1);
+		
+	}
+	
+	function startHorizontalBar(cursorPoint){
+		
+		if( window.paused ||
+			$(".topBar").length > 0 || $(".bottomBar").length > 0 ||
+			$(".leftBar").length > 0 || $(".rightBar").length > 0){
+			//do nothing if bar is already started
+			return;
+		}
+		
+		var leftDiv = buildBarDiv("leftBar", "leftArrow", cursorPoint);
+		var rightDiv = buildBarDiv("rightBar", "rightArrow", cursorPoint);
+		
+		document.getElementById("mainContainer").appendChild(leftDiv);
+		document.getElementById("mainContainer").appendChild(rightDiv);
+		
+		transformBar(leftDiv, (-1), 1, 0, 0);
+		transformBar(rightDiv, 0, 1, 0, 0);
+		
+	}
+	
+	function buildBarDiv(mainClassName, childClassName, point){
+		
+		var barDiv = document.createElement("div");
+		barDiv.className = mainClassName;
+		barDiv.style.top = point.y + "px";
+		barDiv.style.left = point.x + "px";
+		
+		//set starting length to 0px and thickness to default barWidth
+		barDiv.style.height = (mainClassName=="topBar" || mainClassName=="bottomBar" ? 0 : window.barWidth) + "px";
+		barDiv.style.width = (mainClassName=="leftBar" || mainClassName=="rightBar" ? 0 : window.barWidth) + "px";
+		
+		var arrowDiv = document.createElement("div");
+		arrowDiv.className = childClassName;
+		arrowDiv.style.height = window.barWidth + "px";
+		arrowDiv.style.width = window.barWidth + "px";
+		arrowDiv.style.lineHeight = window.barWidth + "px";
+		
+		barDiv.appendChild(arrowDiv);
+		
+		return barDiv;
+	}
+	
+	function getRectFromDiv(div){
+		
+		var computedStyles = window.getComputedStyle( div, null);
+		
+		var curTop = parseInt(computedStyles.top);
+		var curBottom = curTop + parseInt(computedStyles.height);
+		
+		var curLeft = parseInt(computedStyles.left);
+		var curRight = curLeft + parseInt(computedStyles.width);
+		
+		var newRect = new Rect(
+			curTop,
+			curLeft,
+			curBottom,
+			curRight
+		);
+		
+		return newRect;
+	}
+	
+	function debugClosure(){
+		
+		for(var x = 0; x < window.closureMap.length; x++){
+			var colOutput = "";
+			for(var y = 0; y < window.closureMap[x].length; y++){
+				colOutput += window.closureMap[x][y] + " ";
+			}
+			console.log(colOutput + " (" + x + ")");
+		}
+		console.log("=====================================================");
+		
+	}
+	function debugTestClosure(){
+		
+		for(var x = 0; x < window.testClosureMap.length; x++){
+			var colOutput = "";
+			for(var y = 0; y < window.testClosureMap[x].length; y++){
+				colOutput += window.testClosureMap[x][y] + " ";
+			}
+			console.log(colOutput + " (" + x + ")");
+		}
+		console.log("=====================================================");
+		
+	}
+	
+	function checkClosure(){
+		
+		window.testClosureMap = new Array();
+		for (var i = 0; i < window.closureMap.length; i++){
+			window.testClosureMap[i] = window.closureMap[i].slice();
+		}
+		
+		for(var x = 0; x < window.testClosureMap.length; x++){
+			for(var y = 0; y < window.testClosureMap[x].length; y++){
+				
+				if( window.testClosureMap[x][y] == '-' ){
+					//mark all contiguous spaces and check if space contains a ball
+					if( !isBallInContiguous(x, y) ){
+						
+						fillContiguous(x, y);
+						
+						updateCompletePercentage();
+						
+					}
+					
+				}
+				
+			}
+		}
+		
+	}
+	
+	function updateCompletePercentage(){
+	
+		//update complete percentage
+		var totalSpaces = window.closureMap.length * window.closureMap[0].length;
+		var closedCount = 0;
+		for (var i = 0; i < window.closureMap.length; i++){
+			for (var j = 0; j < window.closureMap[i].length; j++){
+				if(window.closureMap[i][j] == 'X'){
+					closedCount++;
+				}
+			}
+		}
+		
+		var percentComplete = parseInt(closedCount * 100 / totalSpaces);
+		$("#complete").text( percentComplete );
+		
+		if(percentComplete >= 75){
+			window.paused = true;
+			window.score += parseInt(5 * window.timeRemaining);
+			$("#score").text(window.score);
+			$("#playPauseBtn").text("Next Level");
+		}
+		
+	}
+	
+	function fillContiguous(x, y){
+		
+		//add div to empty space
+		var barDiv = document.createElement("div");
+		barDiv.className = "closureFill";
+		barDiv.style.top = (window.barWidth * x) + "px";
+		barDiv.style.left = (window.barWidth * y) + "px";
+		barDiv.style.height = window.barWidth + "px";
+		barDiv.style.width = window.barWidth + "px";
+		
+		document.getElementById("mainContainer").appendChild(barDiv);
+		
+		//iterate over all contiguous spaces
+		window.closureMap[x][y] = 'X';
+		window.score += window.pointsPerSpace;
+		$("#score").text(window.score);
+		
+		if((x+1) < window.closureMap.length && window.closureMap[x+1][y] == '-'){
+			fillContiguous(x+1, y);
+		}
+		if((x-1) >= 0 && window.closureMap[x-1][y] == '-'){
+			fillContiguous(x-1, y);
+		}
+		if((y+1) < window.closureMap[x].length && window.closureMap[x][y+1] == '-'){
+			fillContiguous(x, y+1);
+		}
+		if((y-1) >= 0 && window.closureMap[x][y-1] == '-'){
+			fillContiguous(x, y-1);
+		}
+		
+	}
+	
+	function isBallInCurrent(newX, newY){
+		
+		//make sure the new position is in bounds
+		if(newX < window.testClosureMap.length && newX >= 0 &&
+			newY < window.testClosureMap[newX].length && newY >= 0){
+			
+			//if position is empty
+			if(window.testClosureMap[newX][newY] == '-'){
+			
+				//check contiguous
+				if(isBallInContiguous(newX, newY)){
+					return true;
+				}
+				
+			}else if(window.testClosureMap[newX][newY] == '@'){
+				//if position has a ball
+				return true;
+			}
+			
+		}
+		
+		return false;
+	}
+	
+	function isBallInContiguous(x, y){
+		
+		var hasBall = false;
+		
+		//mark each known empty space
+		window.testClosureMap[x][y] = 't';
+		
+		//check all contiguous empty spaces for a ball
+		if( isBallInCurrent(x+1, y) ){
+			hasBall = true;
+		}
+		if( isBallInCurrent(x-1, y) ){
+			hasBall = true;
+		}
+		if( isBallInCurrent(x, y+1) ){
+			hasBall = true;
+		}
+		if( isBallInCurrent(x, y-1) ){
+			hasBall = true;
+		}
+		
+		return hasBall;
+	}
+	
+	function limitMinMax(val, min, max){
+		
+		if(val > max){
+			return max;
+		}else if(val < min){
+			return min;
+		}else{
+			return val;
+		}
+		
+	}
+	
+	function addBarToMap(div){
+		
+		//find index
+		var rect = getRectFromDiv(div);
+		
+		//vertical bar
+		if(rect.r - rect.l <= window.barWidth){
+			
+			var startRow = limitMinMax( parseInt(rect.t / window.barWidth), 0, closureMap.length );
+			var endRow = limitMinMax( parseInt(rect.b / window.barWidth), 0, closureMap.length );
+			var col = limitMinMax( parseInt(rect.l / window.barWidth), 0, closureMap[0].length );
+			
+			for(var x=startRow; x < endRow; x++){
+				window.closureMap[x][col] = 'X';
+				window.score += window.pointsPerSpace;
+				$("#score").text(window.score);
+			}
+			
+		}else{
+			
+			var row = limitMinMax( parseInt(rect.t / window.barWidth), 0, closureMap.length);
+			var startCol = limitMinMax( parseInt(rect.l / window.barWidth), 0, closureMap[0].length);
+			var endCol = limitMinMax( parseInt(rect.r / window.barWidth), 0, closureMap[0].length);
+			
+			for(var x=startCol; x < endCol; x++){
+				window.closureMap[row][x] = 'X';
+				window.score += window.pointsPerSpace;
+				$("#score").text(window.score);
+			}
+			
+		}
+		
+		updateCompletePercentage();
+		
+		updateBallPositions();
+		
+		checkClosure();
+	}
+	
+	function updateBallPositions(){
+		
+		//clear ball positions
+		for(var x = 0; x < window.closureMap.length; x++ ){
+			for(var y = 0; y < window.closureMap[x].length; y++ ){
+				if( window.closureMap[x][y] == '@' ){
+					window.closureMap[x][y] = '-';
+				}
+			}
+		}
+		
+		//add each ball position to map
+		$(".ball").each(function(){
+			var ballRect = getRectFromDiv($(this)[0]);
+			
+			var row = limitMinMax( parseInt(ballRect.t / window.barWidth), 0, window.closureMap.length);
+			var col = limitMinMax( parseInt(ballRect.l / window.barWidth), 0, window.closureMap[0].length);
+			
+			window.closureMap[row][col] = '@';
+			
+		});
+		
+	}
+	
+	function initClosureMap(){
+		
+		window.closureMap = new Array();
+		var mapRows = parseInt($("#mainContainer").height() / window.barWidth);
+		var mapColumns = parseInt($("#mainContainer").width() / window.barWidth);
+		for(var x = 0; x < mapRows; x++ ){
+			window.closureMap[x] = new Array();
+			for(var y = 0; y < mapColumns; y++ ){
+				window.closureMap[x][y] = '-';
+			}
+		}
+		
+	}
+	
+	function resolveCursorPosition(e){
+		
+		//resolve cursor position to the nearest 20x20 block
+		
+		var offset = $("#mainContainer").offset();
+		
+		var x = (e.pageX - offset.left);
+		x = x - (x % window.barWidth);
+		
+		var y = (e.pageY - offset.top);
+		y = y - (y % window.barWidth);
+		
+		return new Point(x, y);
+	}
+	
+	var urlString = window.location.href;
+	var url = new URL(urlString);
+	window.level = url.searchParams.get("level");
+	if(window.level == undefined || window.level == null || parseInt(window.level) != window.level || window.level <= 0){
+		window.level = 1;
+	}
+	window.ballSpeed = 4;
+	window.barSpeed = 6;
+	window.barWidth = 23;
+	window.ballDiameter = 18;
+	window.pointsPerSpace = 11;
+	window.score = 0;
+	window.paused = true;
+	
+	function setGame(){
+		
+		window.paused = true;
+		
+		clearGame();
+		
+		if(window.level > 49){
+			window.level = 49;
+		}
+		
+		window.timeRemaining = 1500 + ((window.level-1) * 250);
+		$("#time").text(window.timeRemaining);
+		
+		window.timeInterval = setInterval(function(){
+			if(!window.paused){
+				$("#time").text(--window.timeRemaining);
+				
+				if(window.timeRemaining <= 0){
+					window.paused = true;
+					$("#playPauseBtn").text("Retry");
+					clearInterval(window.timeInterval);
+				}
+				
+			}
+		}, 100);
+		
+		window.remainingLives = parseInt(window.level) + 1;
+		$("#lives").text(window.remainingLives);
+		
+		$("#score").text(window.score);
+		
+		//add one ball for each level, plus one
+		for(var x=0; x <= window.level; x++)
+		{
+			buildBall();
+		}
+		
+		initClosureMap();
+		
+	}
+	
+	function clearGame(){
+		
+		clearInterval(window.timeInterval);
+		
+		$('.closureBar').remove();
+		$('.closureFill').remove();
+		
+		$('.topBar').remove();
+		$('.bottomBar').remove();
+		$('.leftBar').remove();
+		$('.rightBar').remove();
+		
+		$(".ball").remove();
+		
+	}
+	
+	$(document).ready(function(){
+		
+		setGame();
+		
+		$("#playPauseBtn").click(function(){
+			if($(this).text() == 'Pause'){
+				
+				window.paused = true;
+				$(this).text('Play');
+				
+			}else if($(this).text() == 'Play'){
+				
+				window.paused = false;
+				$(this).text('Pause');
+				play();
+				
+			}else if($(this).text() == 'Retry'){
+				
+				window.score = 0;
+				setGame();
+				window.paused = false;
+				$(this).text('Pause');
+				play();
+				
+			}else if($(this).text() == 'Next Level'){
+				
+				level++;
+				setGame();
+				window.paused = false;
+				$(this).text('Pause');
+				play();
+				
+			}
+		});
+		
+		$("#mainContainer").contextmenu(function(e){
+			e.preventDefault();
+			if($("#mainContainer").hasClass("verticalCursor")){
+				$("#mainContainer").removeClass("verticalCursor").addClass("horizontalCursor");
+			}else{
+				$("#mainContainer").removeClass("horizontalCursor").addClass("verticalCursor");
+			}
+		});
+		
+		$(document).on("click", ".verticalCursor", function(e){
+			startVerticalBar( resolveCursorPosition(e) );
+		});
+		$(document).on("click", ".horizontalCursor", function(e){
+			startHorizontalBar( resolveCursorPosition(e) );
+		});
+		
+	});
+	
+</script>
+</body>
+</html>
