@@ -1,6 +1,6 @@
 # Jezzball
  
-A browser-based version of Jezzball, built with HTML, CSS, and jQuery.
+A browser-based version of Jezzball, built with HTML, CSS, JavaScript, and jQuery.
 
 ## How to Play
  
